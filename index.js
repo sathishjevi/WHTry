@@ -1,8 +1,11 @@
+import express from "express";
 const express = require("express");
 const bodyParser = require("body-parser");
 
+
 const app = express();
-const PORT = process.env.PORT || 3000;
+app.get("/", (req, res) => res.send("Webhook active"));
+app.listen(process.env.PORT || 3000);
 
 // 👇 Use your own token (same as the one in Meta dashboard)
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "my_verify_token";
@@ -36,3 +39,4 @@ app.get("/", (req, res) => res.send("✅ WhatsApp Webhook is running!"));
 app.listen(PORT, () => {
   console.log(`🚀 Webhook server running on port ${PORT}`);
 });
+
