@@ -37,7 +37,7 @@ app.post("/webhook", async (req, res) => {
       console.log("📩 Received message:", msgBody);
 
       // ✅ Step 4 — Add simple automation logic
-      const reply = `Hi! Thanks for your message: "${msgBody}". We'll get back to you soon.`;
+      const reply = `Hi! Thanks for your message: We will get back to you soon.`;
 
       // Call WhatsApp API to send reply (Step 5)
       await sendMessage(phoneNumberId, from, reply);
@@ -53,7 +53,7 @@ app.post("/webhook", async (req, res) => {
 async function sendMessage(phoneNumberId, to, message) {
   try {
     await axios.post(
-      `https://graph.facebook.com/v19.0/1320294105747933/messages`,
+      `https://graph.facebook.com/v19.0/860246143829264/messages`,
       {
         messaging_product: "whatsapp",
         to,
@@ -75,3 +75,4 @@ async function sendMessage(phoneNumberId, to, message) {
 // 🚀 Start server
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log(`🚀 Webhook running on port ${PORT}`));
+
