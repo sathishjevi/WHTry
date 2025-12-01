@@ -5,10 +5,10 @@ const axios = require("axios");
 const app = express();
 app.use(bodyParser.json());
 
-// Environment variables
-const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "mytoken";
-const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
-const WHATSAPP_PHONE_ID = process.env.WHATSAPP_PHONE_ID;
+// --- Environment variables ---
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || "mytoken"; // verification token
+const WHATSAPP_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN; // permanent token
+const WHATSAPP_PHONE_ID = process.env.WHATSAPP_PHONE_NUMBER_ID; // phone number ID
 
 // --- GET Webhook verification ---
 app.get("/whatsapp/webhook", (req, res) => {
@@ -18,20 +18,20 @@ app.get("/whatsapp/webhook", (req, res) => {
 
   if (mode === "subscribe" && token === VERIFY_TOKEN) {
     console.log("Webhook Verified!");
-    res.status(200).send(challenge);
+    return res.status(200).send(challenge);
   } else {
     console.log("Webhook Verification Failed");
-    res.sendStatus(403);
+    return res.sendStatus(403);
   }
 });
 
 // --- POST: Incoming WhatsApp messages + async reply ---
-app.post("/whatsapp/webhook", (req, res) => {
+app.post("/whatsapp/webhook", async (req, res) => {
   try {
-    // Always respond 200 immediately
+    // Always respond 200 immediately to Meta
     res.sendStatus(200);
 
-    // Safety checks for payload
+    // --- Safety checks ---
     const entry = req.body.entry?.[0];
     const changes = entry?.changes?.[0];
     const messages = changes?.value?.messages;
@@ -47,8 +47,17 @@ app.post("/whatsapp/webhook", (req, res) => {
 
     console.log(`Incoming message from ${from}: ${text}`);
 
-    // Send reply asynchronously
-    axios.post(
+    // Debug logs
+    console.log("WHATSAPP_TOKEN length:", WHATSAPP_TOKEN?.length || "undefined");
+    console.log("WHATSAPP_PHONE_ID:", WHATSAPP_PHONE_ID || "undefined");
+
+    if (!WHATSAPP_TOKEN || !WHATSAPP_PHONE_ID) {
+      console.error("Missing WhatsApp token or phone ID!");
+      return;
+    }
+
+    // --- Send reply asynchronously ---
+    await axios.post(
       `https://graph.facebook.com/v20.0/${WHATSAPP_PHONE_ID}/messages`,
       {
         messaging_product: "whatsapp",
@@ -60,18 +69,13 @@ app.post("/whatsapp/webhook", (req, res) => {
           Authorization: `Bearer ${WHATSAPP_TOKEN}`,
           "Content-Type": "application/json",
         },
-        timeout: 4000 // 4 seconds max
+        timeout: 4000,
       }
-    )
-    .then(() => {
-      console.log(`Reply sent to ${from}`);
-    })
-    .catch(err => {
-      console.error("Error sending reply:", err.response?.data || err.message || err);
-    });
+    );
 
+    console.log(`Reply sent to ${from}`);
   } catch (err) {
-    console.error("Webhook POST error:", err.message || err);
+    console.error("Error sending reply:", err.response?.data || err.message || err);
   }
 });
 
@@ -83,5 +87,5 @@ app.get("/health", (req, res) => {
 // --- Start server ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Webhook server running on port ${PORT}`);
+  console.log(`WhatsApp Webhook running on port ${PORT}`);
 });
