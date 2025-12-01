@@ -1,6 +1,5 @@
-import express from "express";
-import bodyParser from "body-parser";
-import axios from "axios";
+const express = require("express");
+const bodyParser = require("body-parser");
 
 const app = express();
 app.use(bodyParser.json());
@@ -64,5 +63,6 @@ async def webhook(request: Request):
 // 🚀 Start server
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log(`🚀 Webhook running on port ${PORT}`));
+
 
 
