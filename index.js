@@ -5,8 +5,10 @@ const axios = require("axios");
 const app = express();
 app.use(bodyParser.json());
 
-// Webhook verification token (your choice)
+// Environment variables
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "mytoken";
+const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
+const WHATSAPP_PHONE_ID = process.env.WHATSAPP_PHONE_ID;
 
 // --- GET Webhook verification ---
 app.get("/whatsapp/webhook", (req, res) => {
@@ -23,48 +25,62 @@ app.get("/whatsapp/webhook", (req, res) => {
   }
 });
 
-// --- POST: Incoming WhatsApp messages + auto-reply ---
-app.post("/whatsapp/webhook", async (req, res) => {
+// --- POST: Incoming WhatsApp messages + async reply ---
+app.post("/whatsapp/webhook", (req, res) => {
   try {
-    const entry = req.body.entry && req.body.entry[0];
-    const changes = entry?.changes && entry.changes[0];
+    // Always respond 200 immediately
+    res.sendStatus(200);
+
+    // Safety checks for payload
+    const entry = req.body.entry?.[0];
+    const changes = entry?.changes?.[0];
     const messages = changes?.value?.messages;
 
-    if (messages && messages.length > 0) {
-      const msg = messages[0];
-      const from = msg.from; // sender phone number
-      const text = msg.text?.body || "No text";
-
-      console.log(`Incoming message from ${from}: ${text}`);
-
-      // Send reply using WhatsApp Cloud API
-      await axios.post(
-        `https://graph.facebook.com/v20.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
-        {
-          messaging_product: "whatsapp",
-          to: from,
-          text: { body: `You said: ${text}` },
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      console.log(`Reply sent to ${from}`);
+    if (!messages || messages.length === 0) {
+      console.log("No messages found in webhook payload.");
+      return;
     }
 
-    // Always respond 200 OK to Meta
-    res.sendStatus(200);
+    const msg = messages[0];
+    const from = msg.from; // sender phone number
+    const text = msg.text?.body || "No text";
+
+    console.log(`Incoming message from ${from}: ${text}`);
+
+    // Send reply asynchronously
+    axios.post(
+      `https://graph.facebook.com/v20.0/${WHATSAPP_PHONE_ID}/messages`,
+      {
+        messaging_product: "whatsapp",
+        to: from,
+        text: { body: `You said: ${text}` },
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        timeout: 4000 // 4 seconds max
+      }
+    )
+    .then(() => {
+      console.log(`Reply sent to ${from}`);
+    })
+    .catch(err => {
+      console.error("Error sending reply:", err.response?.data || err.message || err);
+    });
+
   } catch (err) {
-    console.error("Webhook error:", err.response?.data || err.message || err);
-    res.sendStatus(500);
+    console.error("Webhook POST error:", err.message || err);
   }
 });
 
-// --- Start Server ---
+// --- Health check endpoint ---
+app.get("/health", (req, res) => {
+  res.status(200).send("Webhook is running");
+});
+
+// --- Start server ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Webhook server running on port ${PORT}`);
