@@ -6,9 +6,10 @@ const app = express();
 app.use(bodyParser.json());
 
 // --- Environment variables ---
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || "mytoken"; // verification token
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || "mytoken"; // webhook verification
 const WHATSAPP_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN; // permanent token
 const WHATSAPP_PHONE_ID = process.env.WHATSAPP_PHONE_NUMBER_ID; // phone number ID
+const ASTROBOT_URL = process.env.ASTROBOT_URL; // your AstroBot service endpoint
 
 // --- GET Webhook verification ---
 app.get("/whatsapp/webhook", (req, res) => {
@@ -25,13 +26,12 @@ app.get("/whatsapp/webhook", (req, res) => {
   }
 });
 
-// --- POST: Incoming WhatsApp messages + async reply ---
+// --- POST: Incoming WhatsApp messages + bot reply ---
 app.post("/whatsapp/webhook", async (req, res) => {
   try {
-    // Always respond 200 immediately to Meta
+    // Respond 200 immediately
     res.sendStatus(200);
 
-    // --- Safety checks ---
     const entry = req.body.entry?.[0];
     const changes = entry?.changes?.[0];
     const messages = changes?.value?.messages;
@@ -47,22 +47,34 @@ app.post("/whatsapp/webhook", async (req, res) => {
 
     console.log(`Incoming message from ${from}: ${text}`);
 
-    // Debug logs
-    console.log("WHATSAPP_TOKEN length:", WHATSAPP_TOKEN?.length || "undefined");
-    console.log("WHATSAPP_PHONE_ID:", WHATSAPP_PHONE_ID || "undefined");
-
+    // Check essential env vars
     if (!WHATSAPP_TOKEN || !WHATSAPP_PHONE_ID) {
       console.error("Missing WhatsApp token or phone ID!");
       return;
     }
+    if (!ASTROBOT_URL) {
+      console.error("Missing AstroBot URL!");
+      return;
+    }
 
-    // --- Send reply asynchronously ---
+    // --- Send message to AstroBot service ---
+    let botReply = "Sorry, I couldn't get a reply.";
+    try {
+      const botResponse = await axios.post(ASTROBOT_URL, { message: text, from });
+      if (botResponse.data && botResponse.data.reply) {
+        botReply = botResponse.data.reply;
+      }
+    } catch (err) {
+      console.error("Error contacting AstroBot:", err.response?.data || err.message || err);
+    }
+
+    // --- Send reply via WhatsApp ---
     await axios.post(
       `https://graph.facebook.com/v20.0/${WHATSAPP_PHONE_ID}/messages`,
       {
         messaging_product: "whatsapp",
         to: from,
-        text: { body: `You said: ${text}` },
+        text: { body: botReply },
       },
       {
         headers: {
@@ -73,13 +85,14 @@ app.post("/whatsapp/webhook", async (req, res) => {
       }
     );
 
-    console.log(`Reply sent to ${from}`);
+    console.log(`Reply sent to ${from}: ${botReply}`);
+
   } catch (err) {
-    console.error("Error sending reply:", err.response?.data || err.message || err);
+    console.error("Webhook POST error:", err.response?.data || err.message || err);
   }
 });
 
-// --- Health check endpoint ---
+// --- Health check ---
 app.get("/health", (req, res) => {
   res.status(200).send("Webhook is running");
 });
