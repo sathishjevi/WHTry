@@ -145,3 +145,20 @@ app.listen(PORT, () => {
   console.log(`WhatsApp Webhook running on port ${PORT}`);
   console.log(`Using internal Astro URL: ${ASTRO_INTERNAL_URL}`);
 });
+
+app.post("/whatsapp/webhook", async (req, res) => {
+  console.log("RAW WEBHOOK PAYLOAD:", JSON.stringify(req.body, null, 2));
+
+  res.sendStatus(200); // respond immediately
+
+  const entry = req.body.entry?.[0];
+  const changes = entry?.changes?.[0];
+  const messages = changes?.value?.messages;
+  
+  if (!messages) {
+    console.log("No messages found in webhook payload");
+    return;
+  }
+
+  console.log("Message block found:", messages);
+});
